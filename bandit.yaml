@@ -1,0 +1,5 @@
+# Bandit configuration, used by scripts/security-check.ps1
+exclude_dirs:
+  - .venv
+  - staticfiles
+  - security-reports
