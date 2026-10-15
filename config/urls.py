@@ -5,6 +5,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
+    path("api/health/", include("apps.common.urls")),
     # Prometheus metrics live under /internal/. Nginx blocks this prefix from the public (Phase 2).
     path("internal/", include("django_prometheus.urls")),
 ]
