@@ -1,0 +1,6 @@
+# Keep LF line endings on every platform. Windows checkouts that convert to CRLF can break
+# mounted config files (nginx, redis, postgres) and shell scripts inside Linux containers.
+* text=auto eol=lf
+*.docx binary
+*.png binary
+*.jpg binary

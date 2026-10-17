@@ -1,0 +1,250 @@
+# RailRush local stack: nginx -> web (gunicorn) -> pgbouncer -> postgres, plus redis and a Celery worker.
+# Only nginx is published, and only on 127.0.0.1. Everything else lives on a private network
+# that has no route to the internet.
+#
+# Start:  docker compose up -d --build
+# Tests:  docker compose --profile test run --rm test
+name: railrush
+
+x-app-env: &app-env
+  DJANGO_SETTINGS_MODULE: config.settings.prod
+  DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}"
+  DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost},web,127.0.0.1"
+  DJANGO_ADMIN_URL: "${DJANGO_ADMIN_URL:-admin/}"
+  API_DOCS_ENABLED: "false"
+  # Local stack speaks plain HTTP. Set SECURE_SSL_REDIRECT=true in .env once TLS fronts nginx.
+  SECURE_SSL_REDIRECT: "${SECURE_SSL_REDIRECT:-false}"
+  # nginx is the single trusted proxy. Without this every client would share one throttle bucket.
+  NUM_PROXIES: "1"
+  DATABASE_URL: "postgres://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@pgbouncer:6432/${POSTGRES_DB:?Set POSTGRES_DB in .env}"
+  REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0"
+  CELERY_BROKER_URL: "redis://:${REDIS_PASSWORD}@redis:6379/1"
+  LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+
+x-hardening: &hardening
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER in .env}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      POSTGRES_DB: "${POSTGRES_DB:?Set POSTGRES_DB in .env}"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 1536m
+    shm_size: 256m
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
+  pgbouncer:
+    image: "${PGBOUNCER_IMAGE:?Run the Phase 2 bootstrap block first (it picks a PgBouncer image)}"
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      LISTEN_PORT: "6432"
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "20"
+      RESERVE_POOL_SIZE: "5"
+      RESERVE_POOL_TIMEOUT: "3"
+      MAX_DB_CONNECTIONS: "40"
+      QUERY_WAIT_TIMEOUT: "10"
+      SERVER_IDLE_TIMEOUT: "60"
+      SERVER_LIFETIME: "3600"
+      IDLE_TRANSACTION_TIMEOUT: "15"
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits,options
+      LOG_CONNECTIONS: "0"
+      LOG_DISCONNECTIONS: "0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 128m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    user: redis
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"]
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
+    volumes:
+      - redisdata:/data
+      - ./deploy/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 1g
+    <<: *hardening
+    networks: [backend]
+
+  # One-shot: applies migrations straight to PostgreSQL (not through PgBouncer) before the app starts.
+  migrate:
+    image: railrush-web
+    pull_policy: never
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    environment:
+      <<: *app-env
+      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    mem_limit: 512m
+    <<: *hardening
+    networks: [backend]
+
+  web:
+    build:
+      context: .
+      target: runtime
+    image: railrush-web
+    pull_policy: build
+    restart: unless-stopped
+    # Phase 8 compares process models by changing these three variables in .env.
+    command: ["gunicorn", "-c", "deploy/gunicorn.conf.py", "${APP_MODULE:-config.wsgi:application}"]
+    environment:
+      <<: *app-env
+      WEB_CONCURRENCY: "${WEB_CONCURRENCY:-3}"
+      GUNICORN_THREADS: "${GUNICORN_THREADS:-16}"
+      GUNICORN_WORKER_CLASS: "${GUNICORN_WORKER_CLASS:-gthread}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/live/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 1536m
+    pids_limit: 1024
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    <<: *hardening
+    networks: [backend]
+
+  worker:
+    image: railrush-web
+    pull_policy: never
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "worker", "--loglevel=INFO", "--concurrency=2", "--max-tasks-per-child=500"]
+    environment: *app-env
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping --timeout 5 > /dev/null 2>&1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 40s
+    mem_limit: 512m
+    <<: *hardening
+    networks: [backend]
+
+  nginx:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${NGINX_HOST_PORT:-8080}:8080"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/nginx-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    mem_limit: 256m
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    sysctls:
+      net.core.somaxconn: 4096
+    read_only: true
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=1777
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks: [edge, backend]
+
+  # Runs the whole test suite against real PostgreSQL and Redis:
+  #   docker compose --profile test run --rm test
+  test:
+    build:
+      context: .
+      target: test
+    image: railrush-test
+    pull_policy: build
+    profiles: ["test"]
+    command: ["pytest", "-q", "-p", "no:cacheprovider"]
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}"
+      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/2"
+      CELERY_BROKER_URL: "redis://:${REDIS_PASSWORD}@redis:6379/3"
+      DEV_LOCMEM_CACHE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [backend]
+
+networks:
+  edge: {}
+  backend:
+    internal: true
+
+volumes:
+  pgdata:
+  redisdata:

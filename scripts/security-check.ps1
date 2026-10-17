@@ -106,6 +106,8 @@ $prodEnv = @{
     DJANGO_SETTINGS_MODULE = "config.settings.prod"
     DJANGO_SECRET_KEY      = (& $py -c "import secrets; print(secrets.token_urlsafe(64))")
     DJANGO_ALLOWED_HOSTS   = "railrush.example.com"
+    # Pinned so a local-only value in .env can never hide or fake a production setting.
+    SECURE_SSL_REDIRECT    = "true"
 }
 Invoke-Check "Django deploy check (prod settings)" {
     Invoke-WithEnv $prodEnv { & $py manage.py check --deploy --fail-level WARNING }
