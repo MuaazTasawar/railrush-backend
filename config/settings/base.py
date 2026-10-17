@@ -156,6 +156,7 @@ REST_FRAMEWORK = {
         "user": env("THROTTLE_USER", default="300/min"),
         "login": env("THROTTLE_LOGIN", default="10/min"),
         "register": env("THROTTLE_REGISTER", default="5/min"),
+        "refresh": env("THROTTLE_REFRESH", default="120/min"),
     },
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
 }

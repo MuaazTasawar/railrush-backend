@@ -47,3 +47,13 @@ class LoginAccountThrottle(SimpleRateThrottle):
             return None  # nothing to key on; the per-IP throttle still applies
         digest = hashlib.sha256(email.encode("utf-8")).hexdigest()
         return self.cache_format % {"scope": self.scope, "ident": digest}
+
+
+class RefreshThrottle(_IPScopedThrottle):
+    """Limits token refreshes per client IP (rate: THROTTLE_REFRESH).
+
+    Much looser than login: a refresh costs one indexed lookup, not a password hash, and a
+    whole mobile-carrier NAT of users may refresh from one address.
+    """
+
+    scope = "refresh"
