@@ -157,6 +157,8 @@ REST_FRAMEWORK = {
         "login": env("THROTTLE_LOGIN", default="10/min"),
         "register": env("THROTTLE_REGISTER", default="5/min"),
         "refresh": env("THROTTLE_REFRESH", default="120/min"),
+        "waitroom_join": env("THROTTLE_WAITROOM_JOIN", default="20/min"),
+        "waitroom_me": env("THROTTLE_WAITROOM_ME", default="120/min"),
     },
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
 }
@@ -208,3 +210,13 @@ LOGGING = {
 # Search dates are calendar days in this zone; times are returned in UTC.
 CATALOG_TIME_ZONE = env("CATALOG_TIME_ZONE", default="Asia/Karachi")
 CATALOG_MAX_DAYS_AHEAD = env.int("CATALOG_MAX_DAYS_AHEAD", default=120)
+
+# --- Waiting room -----------------------------------------------------------
+# Admissions are spaced 1 / WAITROOM_ADMIT_PER_SECOND seconds apart. A pass is valid for
+# WAITROOM_PASS_TTL_SECONDS after the user's own admission time. Joining opens
+# WAITROOM_PREQUEUE_SECONDS before booking opens. The rate is tuned in Phase 8.
+WAITROOM_ADMIT_PER_SECOND = env.float("WAITROOM_ADMIT_PER_SECOND", default=50.0)
+WAITROOM_PASS_TTL_SECONDS = env.int("WAITROOM_PASS_TTL_SECONDS", default=600)
+WAITROOM_PREQUEUE_SECONDS = env.int("WAITROOM_PREQUEUE_SECONDS", default=900)
+WAITROOM_MAX_QUEUE = env.int("WAITROOM_MAX_QUEUE", default=200000)
+WAITROOM_KEY_PREFIX = env("WAITROOM_KEY_PREFIX", default="wr")

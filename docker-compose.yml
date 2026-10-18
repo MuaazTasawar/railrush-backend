@@ -233,6 +233,7 @@ services:
       REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/2"
       CELERY_BROKER_URL: "redis://:${REDIS_PASSWORD}@redis:6379/3"
       DEV_LOCMEM_CACHE: "false"
+      REQUIRE_REDIS_TESTS: "1"
     depends_on:
       postgres:
         condition: service_healthy

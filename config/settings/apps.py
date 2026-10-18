@@ -4,6 +4,7 @@ LOCAL_APPS = [
     "apps.common",
     "apps.accounts",
     "apps.catalog",
+    "apps.waitroom",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
