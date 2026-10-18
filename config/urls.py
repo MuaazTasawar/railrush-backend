@@ -8,6 +8,7 @@ urlpatterns = [
     path("api/health/", include("apps.common.urls")),
     path("api/auth/", include("apps.accounts.urls")),
     path("api/users/", include("apps.accounts.profile_urls")),
+    path("api/catalog/", include("apps.catalog.urls")),
     # Prometheus metrics live under /internal/. Nginx blocks this prefix from the public (Phase 2).
     path("internal/", include("django_prometheus.urls")),
 ]

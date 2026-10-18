@@ -152,7 +152,7 @@ Expect "Profile: response is no-store" ($me1.Headers["cache-control"] -match "no
 $bad = [ordered]@{
     "refresh token used as an access token" = $refA
     "unsigned token (alg none)"             = (New-ForgedToken $userId "none" "")
-    "token signed with a different key"     = (New-ForgedToken $userId "HS256" "not-the-servers-signing-key-0123456789abcdef")
+    "token signed with a different key"     = (New-ForgedToken $userId "HS256" ("wrong-signing-key-" * 3))
     "tampered signature"                    = ($tokA.Substring(0, $tokA.Length - 4) + "AAAA")
     "garbage"                               = "not.a.jwt"
 }

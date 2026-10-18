@@ -203,3 +203,8 @@ LOGGING = {
         "django.security": {"handlers": ["console"], "level": "WARNING", "propagate": False},
     },
 }
+
+# --- Catalog ----------------------------------------------------------------
+# Search dates are calendar days in this zone; times are returned in UTC.
+CATALOG_TIME_ZONE = env("CATALOG_TIME_ZONE", default="Asia/Karachi")
+CATALOG_MAX_DAYS_AHEAD = env.int("CATALOG_MAX_DAYS_AHEAD", default=120)
