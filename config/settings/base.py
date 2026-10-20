@@ -159,6 +159,7 @@ REST_FRAMEWORK = {
         "refresh": env("THROTTLE_REFRESH", default="120/min"),
         "waitroom_join": env("THROTTLE_WAITROOM_JOIN", default="20/min"),
         "waitroom_me": env("THROTTLE_WAITROOM_ME", default="120/min"),
+        "hold": env("THROTTLE_HOLD", default="30/min"),
     },
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
 }
@@ -220,3 +221,10 @@ WAITROOM_PASS_TTL_SECONDS = env.int("WAITROOM_PASS_TTL_SECONDS", default=600)
 WAITROOM_PREQUEUE_SECONDS = env.int("WAITROOM_PREQUEUE_SECONDS", default=900)
 WAITROOM_MAX_QUEUE = env.int("WAITROOM_MAX_QUEUE", default=200000)
 WAITROOM_KEY_PREFIX = env("WAITROOM_KEY_PREFIX", default="wr")
+
+# --- Seat holds -------------------------------------------------------------
+# A hold keeps a seat for one user while they pay, and expires by itself after HOLD_SECONDS.
+HOLD_SECONDS = env.int("HOLD_SECONDS", default=300)
+HOLD_MAX_SEATS_PER_USER = env.int("HOLD_MAX_SEATS_PER_USER", default=4)
+HOLD_MAX_SEATS_PER_REQUEST = env.int("HOLD_MAX_SEATS_PER_REQUEST", default=4)
+HOLD_KEY_PREFIX = env("HOLD_KEY_PREFIX", default="hold")
