@@ -17,6 +17,7 @@ from apps.catalog.models import Coach, SeatClass, TrainRun
 from apps.waitroom.services import iso
 
 from . import holds
+from .models import BookingSeat
 
 LABEL_RE = re.compile(r"^(\d{1,3})-(\d{1,3})([A-Z])$")
 LAYOUT_TTL_SECONDS = 60
@@ -105,8 +106,10 @@ def validate_labels(layout, labels):
 
 
 def booked_labels(run_id):
-    """Seats already sold on this run. Phase 7 replaces this with a query on confirmed bookings."""
-    return frozenset()
+    """Seats sold or reserved on this run: every active seat of a pending or confirmed booking."""
+    return frozenset(
+        BookingSeat.objects.filter(run_id=run_id, active=True).values_list("seat_label", flat=True)
+    )
 
 
 def _seat_order(label):

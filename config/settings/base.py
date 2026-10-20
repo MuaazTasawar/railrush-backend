@@ -228,3 +228,18 @@ HOLD_SECONDS = env.int("HOLD_SECONDS", default=300)
 HOLD_MAX_SEATS_PER_USER = env.int("HOLD_MAX_SEATS_PER_USER", default=4)
 HOLD_MAX_SEATS_PER_REQUEST = env.int("HOLD_MAX_SEATS_PER_REQUEST", default=4)
 HOLD_KEY_PREFIX = env("HOLD_KEY_PREFIX", default="hold")
+
+# --- Bookings and payments --------------------------------------------------
+# A booking reserves its seats in the database for this long while the buyer pays.
+BOOKING_PAYMENT_SECONDS = env.int("BOOKING_PAYMENT_SECONDS", default=600)
+PAYMENT_PROVIDER = env("PAYMENT_PROVIDER", default="mock")
+# Shared secret the gateway signs webhooks with (HMAC-SHA256 of the raw body). Empty = webhooks refused.
+PAYMENT_WEBHOOK_SECRET = env("PAYMENT_WEBHOOK_SECRET", default="")
+THROTTLE_BOOKING = env("THROTTLE_BOOKING", default="20/min")
+THROTTLE_PAYMENT_WEBHOOK = env("THROTTLE_PAYMENT_WEBHOOK", default="600/min")
+CELERY_BEAT_SCHEDULE = {
+    "expire-pending-bookings": {
+        "task": "apps.bookings.tasks.expire_pending_bookings",
+        "schedule": 30.0,
+    },
+}
