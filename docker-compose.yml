@@ -23,6 +23,10 @@ x-app-env: &app-env
   PAYMENT_PROVIDER: "${PAYMENT_PROVIDER:-mock}"
   PAYMENT_WEBHOOK_SECRET: "${PAYMENT_WEBHOOK_SECRET:?Set PAYMENT_WEBHOOK_SECRET in .env}"
   BOOKING_PAYMENT_SECONDS: "${BOOKING_PAYMENT_SECONDS:-600}"
+  # Per run: every run has its own queue. Size it from docs/CAPACITY.md (50 suits a large deployment, not a small one).
+  WAITROOM_ADMIT_PER_SECOND: "${WAITROOM_ADMIT_PER_SECOND:-50}"
+  # One Redis call per throttle; set false to use DRF's own cache-based throttles.
+  FAST_THROTTLES: "${FAST_THROTTLES:-true}"
 
 x-hardening: &hardening
   read_only: true

@@ -23,8 +23,9 @@ from rest_framework import generics, serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework.throttling import SimpleRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
+
+from apps.common import fast_throttle
 
 from . import booking_services as services
 from . import gateway
@@ -41,14 +42,14 @@ KEY_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 MAX_WEBHOOK_BYTES = 16384
 
 
-class BookingWriteThrottle(UserRateThrottle):
+class BookingWriteThrottle(fast_throttle.FastUserRateThrottle):
     scope = "booking"
 
     def get_rate(self):
         return getattr(settings, "THROTTLE_BOOKING", "20/min")
 
 
-class WebhookThrottle(SimpleRateThrottle):
+class WebhookThrottle(fast_throttle.FixedWindowThrottle):
     scope = "payment_webhook"
 
     def get_rate(self):

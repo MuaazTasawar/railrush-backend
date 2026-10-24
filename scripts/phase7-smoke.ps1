@@ -335,7 +335,7 @@ while ((Get-Date) -lt $deadline) {
     $waited += 3
 }
 Expect "Beat and the worker expired both unpaid bookings by themselves" (($expireOut -match "EXPIRED_ROWS=2") -and ($state3 -eq "expired") -and ($state4 -eq "expired")) "after about $waited s: $state3 / $state4"
-$workerLog = (docker compose logs --no-log-prefix --since 10m worker 2>&1 | ForEach-Object { "$_" }) -join "`n"
+$workerLog = (docker compose logs --no-log-prefix --tail 400 worker 2>&1 | ForEach-Object { "$_" }) -join "`n"
 Expect "The worker log shows expire_pending_bookings running and succeeding" (($workerLog -match "expire_pending_bookings") -and ($workerLog -match "succeeded")) ""
 Start-Sleep -Seconds 3
 $map2 = Invoke-Api GET $mapUrl

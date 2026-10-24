@@ -147,9 +147,9 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "apps.common.exceptions.exception_handler",  # created in Phase 1
     "NUM_PROXIES": env.int("NUM_PROXIES", default=0),
     "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-        "rest_framework.throttling.ScopedRateThrottle",
+        "apps.common.fast_throttle.FastAnonRateThrottle",
+        "apps.common.fast_throttle.FastUserRateThrottle",
+        "apps.common.fast_throttle.FastScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": env("THROTTLE_ANON", default="60/min"),
@@ -237,6 +237,8 @@ PAYMENT_PROVIDER = env("PAYMENT_PROVIDER", default="mock")
 PAYMENT_WEBHOOK_SECRET = env("PAYMENT_WEBHOOK_SECRET", default="")
 THROTTLE_BOOKING = env("THROTTLE_BOOKING", default="20/min")
 THROTTLE_PAYMENT_WEBHOOK = env("THROTTLE_PAYMENT_WEBHOOK", default="600/min")
+# One Redis call per throttle (see apps/common/fast_throttle.py). Set false to use DRF's own cache-based throttles.
+FAST_THROTTLES = env.bool("FAST_THROTTLES", default=True)
 CELERY_BEAT_SCHEDULE = {
     "expire-pending-bookings": {
         "task": "apps.bookings.tasks.expire_pending_bookings",

@@ -1,0 +1,15 @@
+# Load-test overrides. Use with:  docker compose -f docker-compose.yml -f docker-compose.loadtest.yml ...
+# (loadtest\up.ps1 and loadtest\down.ps1 do this for you.) Never use this in production.
+services:
+  nginx:
+    volumes:
+      - ./loadtest/nginx.loadtest.conf:/etc/nginx/nginx.conf:ro
+  web:
+    environment:
+      # A short payment window so abandoned bookings expire during the test.
+      BOOKING_PAYMENT_SECONDS: "${LT_BOOKING_SECONDS:-60}"
+      # k6 reaches nginx by its service name, so Django must accept that Host header (load test only).
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost},web,127.0.0.1,nginx"
+      # Experiment switches (see loadtest\ab.ps1). Defaults match production.
+      FAST_THROTTLES: "${LT_FAST_THROTTLES:-true}"
+      WAITROOM_ADMIT_PER_SECOND: "${LT_ADMIT_PER_SECOND:-50}"
