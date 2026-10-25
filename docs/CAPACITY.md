@@ -23,7 +23,7 @@ absolute numbers belong to one slow, noisy laptop.
 - The journey: join the queue, sleep until `admit_at`, hold 1 or 2 seats, book, pay, signed webhook, read the booking.
   10% abandon before paying and 5% pay unsuccessfully. After every run the data invariants are checked: no seat sold
   twice, every confirmed booking has exactly one succeeded payment of the same amount, and no active seat row belongs
-  to a dead booking. They held in all 15 full-journey runs (about 4,300 purchases).
+  to a dead booking. They held in all 21 full-journey runs (about 6,700 journeys started).
 
 ### What serving one user costs
 
