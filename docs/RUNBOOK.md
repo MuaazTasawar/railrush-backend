@@ -77,3 +77,34 @@ Symptoms: p95 above a few seconds, nginx 503 or 504, a growing queue.
    who join afterwards; tickets already issued keep their admission time.
 3. Scale web (more containers or more CPU) before PostgreSQL or Redis: web is about 70% of the CPU.
 4. If throttling misbehaves, set `FAST_THROTTLES=false` in `.env` and recreate web to fall back to DRF's throttles.
+
+## Observability (Phase 8, part 2)
+
+Start it next to the main stack:
+
+    docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+
+- **Grafana**: http://127.0.0.1:3030 (user `admin`; the password is `GRAFANA_ADMIN_PASSWORD` in `.env`, never paste it
+  anywhere). The "RailRush overview" dashboard is provisioned from `deploy/grafana/dashboards`.
+- **Prometheus** has no published port. Ask it from inside, for example the firing alerts:
+  `docker compose -f docker-compose.yml -f docker-compose.observability.yml exec prometheus wget -qO- http://127.0.0.1:9090/api/v1/alerts`
+- **What is measured**: django-prometheus request, response and latency series from all gunicorn workers combined
+  (`PROMETHEUS_MULTIPROC_DIR`), `railrush_*` gauges read from PostgreSQL and Redis at scrape time, a counter of payment
+  webhook results, and the Redis and PostgreSQL exporters. `/internal/metrics` is refused for anything that came
+  through nginx (it carries X-Forwarded-For) and nginx answers 404 for `/internal/`.
+- **Alerts** are in `deploy/prometheus/alerts.yml` and unit-tested in `alerts_test.yml`. After editing, check them with
+  `docker run --rm --entrypoint promtool -v <repo>\deploy\prometheus:/etc/prometheus:ro <PROMETHEUS_IMAGE> test rules /etc/prometheus/alerts_test.yml`
+  and restart the prometheus container. There is no Alertmanager here: firing alerts show in Prometheus and on the
+  dashboard. A real deployment needs one (email, Telegram or similar).
+
+| Alert | Meaning | First thing to check |
+|---|---|---|
+| ExpiryStalled | Unpaid bookings are past their deadline and not expiring | beat and worker containers (`docker compose ps`, their logs) |
+| RefundRequired | A booking has money but cannot stand | the refund steps in this runbook |
+| High5xxRate, SlowRequests | Errors or slow requests | web logs, then CPU per container |
+| WebDown, RedisDown, PostgresDown | A scrape target is unreachable | that container's logs |
+| RedisMemoryHigh | Redis never evicts, so at its limit writes fail | memory use, queue sizes |
+| PostgresConnectionsHigh | Connection pressure | PgBouncer pools, long transactions |
+
+The PostgreSQL exporter uses the `railrush_monitor` role (read-only `pg_monitor`, 3 connections, 5 s statement
+timeout). If the database volume is ever recreated, rerun the observability bootstrap to create it again.

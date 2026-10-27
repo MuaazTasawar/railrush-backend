@@ -146,6 +146,8 @@ services:
       WEB_CONCURRENCY: "${WEB_CONCURRENCY:-3}"
       GUNICORN_THREADS: "${GUNICORN_THREADS:-16}"
       GUNICORN_WORKER_CLASS: "${GUNICORN_WORKER_CLASS:-gthread}"
+      # Metrics from every gunicorn worker are combined through files in this tmpfs directory (web only).
+      PROMETHEUS_MULTIPROC_DIR: "/tmp/prometheus"
     depends_on:
       migrate:
         condition: service_completed_successfully

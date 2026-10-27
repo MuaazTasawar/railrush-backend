@@ -1,0 +1,69 @@
+# Unit tests for alerts.yml. Run: promtool test rules alerts_test.yml
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Expiry stalls: pending for the 5 minute "for" window, then firing.
+  - interval: 1m
+    input_series:
+      - series: 'railrush_pending_bookings_overdue'
+        values: '0 0 0 4 4 4 4 4 4 4 4 4'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ExpiryStalled
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: ExpiryStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Unpaid bookings are not expiring"
+              description: "Bookings are more than 2 minutes past their payment deadline and still unpaid for 5 minutes. Check the beat and worker containers."
+
+  # A single refund_required booking alerts; confirmed bookings do not.
+  - interval: 1m
+    input_series:
+      - series: 'railrush_bookings{status="refund_required"}'
+        values: '0 0 1 1 1 1 1 1 1 1'
+      - series: 'railrush_bookings{status="confirmed"}'
+        values: '5 5 5 5 5 5 5 5 5 5'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: RefundRequired
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              status: refund_required
+            exp_annotations:
+              summary: "A booking needs a manual refund"
+              description: "At least one booking is in refund_required. See the runbook section on refunds."
+
+  # About 9 percent server errors at 1.1 requests per second fires.
+  - interval: 1m
+    input_series:
+      - series: 'django_http_responses_total_by_status_total{status="200"}'
+        values: '0+60x20'
+      - series: 'django_http_responses_total_by_status_total{status="500"}'
+        values: '0+6x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: High5xxRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "More than 2 percent of responses are server errors"
+              description: "The 5xx ratio has been above 2 percent for 5 minutes at more than half a request per second."
+
+  # Healthy traffic does not.
+  - interval: 1m
+    input_series:
+      - series: 'django_http_responses_total_by_status_total{status="200"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: High5xxRate
+        exp_alerts: []

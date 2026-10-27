@@ -41,3 +41,16 @@ accesslog = "-"
 errorlog = "-"
 loglevel = os.environ.get("LOG_LEVEL", "info").lower()
 access_log_format = '%(h)s "%(m)s %(U)s" %(s)s %(b)s %(L)s'
+
+# Metrics from all workers are combined through files in this directory (a tmpfs). It must exist before the workers
+# start. A worker's gauge files are marked dead when it exits, which happens regularly because of max_requests.
+_metrics_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+if _metrics_dir:
+    os.makedirs(_metrics_dir, exist_ok=True)
+
+
+def child_exit(server, worker):
+    if _metrics_dir:
+        from prometheus_client import multiprocess
+
+        multiprocess.mark_process_dead(worker.pid)

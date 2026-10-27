@@ -25,7 +25,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.common import fast_throttle
+from apps.common import fast_throttle, metrics
 
 from . import booking_services as services
 from . import gateway
@@ -188,6 +188,7 @@ class PaymentWebhookView(APIView):
         result = services.apply_payment_event(
             ref, outcome == "succeeded", amount, {"provider_ref": ref, "status": outcome, "amount_pkr": amount}
         )
+        metrics.PAYMENT_EVENTS.labels(result).inc()
         if result == "amount_mismatch":
             return _error(
                 "amount_mismatch", "The amount does not match the payment.", status.HTTP_400_BAD_REQUEST

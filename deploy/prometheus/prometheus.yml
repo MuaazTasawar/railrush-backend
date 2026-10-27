@@ -1,0 +1,28 @@
+# Prometheus for RailRush. It has no published port: it sits on the private Docker networks and Grafana reads from it.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: railrush
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # All gunicorn workers combined (multiprocess mode). Reached directly on the private network, never through nginx.
+  - job_name: web
+    metrics_path: /internal/metrics
+    static_configs:
+      - targets: ["web:8000"]
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]

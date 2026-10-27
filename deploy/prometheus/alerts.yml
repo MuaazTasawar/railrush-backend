@@ -1,0 +1,121 @@
+# Alert rules. They are unit-tested in alerts_test.yml (promtool test rules). Notifications need an Alertmanager,
+# which this local stack does not run: firing alerts show in Prometheus and on the Grafana dashboard.
+groups:
+  - name: railrush-availability
+    rules:
+      - alert: WebDown
+        expr: up{job="web"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The web tier cannot be scraped"
+          description: "Prometheus could not scrape web:8000/internal/metrics for 1 minute."
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "The Redis exporter cannot reach Redis. Holds, the waiting room and throttles are affected."
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "The PostgreSQL exporter cannot reach the database."
+      - alert: MetricSourceFailing
+        expr: railrush_scrape_ok == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The web tier cannot read PostgreSQL or Redis for its metrics"
+          description: "railrush_scrape_ok has been 0 for a source for 5 minutes."
+
+  - name: railrush-traffic
+    rules:
+      - alert: High5xxRate
+        expr: >
+          sum(rate(django_http_responses_total_by_status_total{status=~"5.."}[5m]))
+          / sum(rate(django_http_responses_total_by_status_total[5m])) > 0.02
+          and sum(rate(django_http_responses_total_by_status_total[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 2 percent of responses are server errors"
+          description: "The 5xx ratio has been above 2 percent for 5 minutes at more than half a request per second."
+      - alert: SlowRequests
+        expr: >
+          histogram_quantile(0.95, sum by (le) (rate(django_http_requests_latency_seconds_by_view_method_bucket{view!~"common:.*|metrics|prometheus-django-metrics"}[5m]))) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The 95th percentile request time is above 2 seconds"
+          description: "Health checks and the metrics endpoint are excluded."
+      - alert: ManyThrottledRequests
+        expr: sum(rate(django_http_responses_total_by_status_total{status="429"}[5m])) > 5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "More than 5 requests per second are being throttled"
+          description: "Either an abusive client or limits that are too tight for real traffic."
+
+  - name: railrush-business
+    rules:
+      - alert: ExpiryStalled
+        expr: railrush_pending_bookings_overdue > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Unpaid bookings are not expiring"
+          description: "Bookings are more than 2 minutes past their payment deadline and still unpaid for 5 minutes. Check the beat and worker containers."
+      - alert: RefundRequired
+        expr: railrush_bookings{status="refund_required"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A booking needs a manual refund"
+          description: "At least one booking is in refund_required. See the runbook section on refunds."
+      - alert: PaymentEventProblems
+        expr: sum(increase(railrush_payment_events_total{result=~"amount_mismatch|refund_required|duplicate_charge"}[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "A payment event needs attention"
+          description: "A gateway event arrived with a wrong amount, after cancellation or as a duplicate charge in the last 15 minutes."
+      - alert: WaitingRoomNearlyFull
+        expr: railrush_waitroom_waiting > 160000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A waiting room is above 80 percent of its limit"
+          description: "WAITROOM_MAX_QUEUE is 200000 by default."
+
+  - name: railrush-infrastructure
+    rules:
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis is above 80 percent of its memory limit"
+          description: "Redis never evicts, so at the limit writes fail."
+      - alert: PostgresConnectionsHigh
+        expr: sum(pg_stat_activity_count) / max(pg_settings_max_connections) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL is above 80 percent of its connections"
+          description: "Check PgBouncer pool sizes and long-running transactions."

@@ -3,6 +3,8 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from apps.common.metrics import metrics_view
+
 urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
     path("api/health/", include("apps.common.urls")),
@@ -12,6 +14,7 @@ urlpatterns = [
     path("api/waitroom/", include("apps.waitroom.urls")),
     path("api/", include("apps.bookings.urls")),
     # Prometheus metrics live under /internal/. Nginx blocks this prefix from the public (Phase 2).
+    path("internal/metrics", metrics_view, name="metrics"),
     path("internal/", include("django_prometheus.urls")),
 ]
 
