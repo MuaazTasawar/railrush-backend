@@ -108,3 +108,5 @@ Start it next to the main stack:
 
 The PostgreSQL exporter uses the `railrush_monitor` role (read-only `pg_monitor`, 3 connections, 5 s statement
 timeout). If the database volume is ever recreated, rerun the observability bootstrap to create it again.
+The tested image digests are recorded in `deploy/observability-images.env`: on a new machine, copy those lines into
+`.env` instead of pulling `:latest` again.
