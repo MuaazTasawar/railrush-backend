@@ -54,7 +54,7 @@ jobs:
       # With this set, a Redis-backed test that cannot reach Redis fails instead of skipping.
       REQUIRE_REDIS_TESTS: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -73,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Compose files, Prometheus rules, nginx syntax, dashboard JSON
         run: pwsh -NoProfile -File ./scripts/infra-check.ps1
 
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
