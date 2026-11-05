@@ -60,6 +60,10 @@ After recreating `web`, run `docker compose restart nginx`.
       .\scripts\security-check.ps1 -Phase <name>
 
 - End-to-end smoke scripts per phase are in `scripts\`. Load tests are in `loadtest\` (see its README).
+- Infrastructure checks (compose files, Prometheus rules and their unit tests, nginx syntax, dashboard JSON):
+  `.\scripts\infra-check.ps1` (needs Docker).
+- GitHub Actions (`.github/workflows/ci.yml`) runs the security gate against PostgreSQL 16 and Redis 7 service
+  containers, the infrastructure checks, and a weekly audit of `requirements/base.txt`, on every push and pull request.
 
 ## API in one list
 

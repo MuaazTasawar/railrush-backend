@@ -1,0 +1,92 @@
+name: CI
+
+# Runs on every push to main, every pull request, once a week and on demand. The weekly run matters because
+# requirements use version ranges (no lock file): a new advisory can turn the dependency audit red with no code change.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Security gate and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The tests talk straight to PostgreSQL and Redis, as the Docker "test" service does. PgBouncer is not in this path.
+    # trust auth: the database exists only for this job, and it keeps password-like text out of this file.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: railrush_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d railrush_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres@localhost:5432/railrush_ci
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      DEV_LOCMEM_CACHE: "false"
+      # With this set, a Redis-backed test that cannot reach Redis fails instead of skipping.
+      REQUIRE_REDIS_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements/dev.txt
+      - name: Generate a throwaway Django secret key
+        run: echo "DJANGO_SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(64))')" >> "$GITHUB_ENV"
+      # The audit runs in its own job below, so this job does not depend on advisories published today.
+      - name: Security gate (lint, bandit, secrets, Django checks, migrations, tests)
+        run: pwsh -NoProfile -File ./scripts/security-check.ps1 -Phase ci -SkipAudit
+
+  infra:
+    name: Infrastructure checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Compose files, Prometheus rules, nginx syntax, dashboard JSON
+        run: pwsh -NoProfile -File ./scripts/infra-check.ps1
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Audit the production requirements
+        run: |
+          python -m pip install "pip-audit>=2.7,<3.0"
+          pip-audit -r requirements/base.txt --progress-spinner off

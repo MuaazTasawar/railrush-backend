@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # Proposes new versions of the actions used in .github/workflows. Python packages are left out until there is a
+  # lock file: with version ranges in requirements/*.txt the proposals would be noise.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

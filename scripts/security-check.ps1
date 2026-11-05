@@ -14,9 +14,27 @@ $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-$py = Join-Path $root ".venv\Scripts\python.exe"
-if (-not (Test-Path $py)) {
-    Write-Host "Virtual environment not found at $py" -ForegroundColor Red
+# Which interpreter runs the tools: GATE_PYTHON if set, else the project's own virtual environment (Windows or
+# Linux layout), else, only in CI, the python on PATH (the workflow installs requirements/dev.txt into it).
+$py = $null
+if ($env:GATE_PYTHON) {
+    $py = $env:GATE_PYTHON
+} else {
+    $venvDir = Join-Path $root ".venv"
+    $candidates = @(
+        (Join-Path (Join-Path $venvDir "Scripts") "python.exe"),
+        (Join-Path (Join-Path $venvDir "bin") "python")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) { $py = $candidate; break }
+    }
+    if (-not $py -and $env:CI -eq "true") {
+        $found = Get-Command python -ErrorAction SilentlyContinue
+        if ($found) { $py = $found.Source }
+    }
+}
+if (-not $py -or -not (Test-Path $py)) {
+    Write-Host "No Python interpreter found. Create .venv in the project folder, or set GATE_PYTHON." -ForegroundColor Red
     exit 2
 }
 
