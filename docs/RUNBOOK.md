@@ -37,8 +37,8 @@ system for now (there is no `refunded` state yet):
 docker compose exec -T web python manage.py shell
 
 from apps.bookings.models import Booking
-for b in Booking.objects.filter(status="refund_required").order_by(“updated_at”):
-... paid = list(b.payments.filter(status="succeeded").values_list(“provider_ref”, “amount_pkr”))
+for b in Booking.objects.filter(status="refund_required").order_by("updated_at"):
+... paid = list(b.payments.filter(status="succeeded").values_list("provider_ref", "amount_pkr"))
 ... print(b.id, b.run_id, b.total_pkr, paid)
 
 
