@@ -75,7 +75,14 @@ function Invoke-WithEnv {
     try { & $Block }
     finally {
         foreach ($k in $saved.Keys) {
-            [Environment]::SetEnvironmentVariable($k, $saved[$k], "Process")
+            # A variable that was not set before must be removed. Passing $null to SetEnvironmentVariable arrives as an
+            # empty string: that deletes the variable on Windows but leaves an EMPTY variable on Linux, and an empty
+            # DJANGO_SETTINGS_MODULE stops manage.py and pytest from using their defaults.
+            if ($null -eq $saved[$k]) {
+                Remove-Item -Path "Env:$k" -ErrorAction SilentlyContinue
+            } else {
+                Set-Item -Path "Env:$k" -Value $saved[$k]
+            }
         }
     }
 }
